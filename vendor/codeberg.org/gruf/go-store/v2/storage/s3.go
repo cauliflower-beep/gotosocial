@@ -50,14 +50,17 @@ type S3Config struct {
 
 // getS3Config returns a valid S3Config for supplied ptr.
 func getS3Config(cfg *S3Config) S3Config {
+	const minChunkSz = 5 * 1024 * 1024
+
 	// If nil, use default
 	if cfg == nil {
 		cfg = DefaultS3Config
 	}
 
-	// Assume 0 chunk size == use default
-	if cfg.PutChunkSize <= 0 {
-		cfg.PutChunkSize = 4 * 1024 * 1024
+	// Ensure a minimum compatible chunk size
+	if cfg.PutChunkSize <= minChunkSz {
+		// See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+		cfg.PutChunkSize = minChunkSz
 	}
 
 	// Assume 0 list size == use default
@@ -67,11 +70,13 @@ func getS3Config(cfg *S3Config) S3Config {
 
 	// Return owned config copy
 	return S3Config{
-		CoreOpts:   cfg.CoreOpts,
-		GetOpts:    cfg.GetOpts,
-		PutOpts:    cfg.PutOpts,
-		StatOpts:   cfg.StatOpts,
-		RemoveOpts: cfg.RemoveOpts,
+		CoreOpts:     cfg.CoreOpts,
+		GetOpts:      cfg.GetOpts,
+		PutOpts:      cfg.PutOpts,
+		PutChunkSize: cfg.PutChunkSize,
+		ListSize:     cfg.ListSize,
+		StatOpts:     cfg.StatOpts,
+		RemoveOpts:   cfg.RemoveOpts,
 	}
 }
 
@@ -155,22 +160,23 @@ func (st *S3Storage) ReadStream(ctx context.Context, key string) (io.ReadCloser,
 }
 
 // WriteBytes implements Storage.WriteBytes().
-func (st *S3Storage) WriteBytes(ctx context.Context, key string, value []byte) error {
-	return st.WriteStream(ctx, key, util.NewByteReaderSize(value))
+func (st *S3Storage) WriteBytes(ctx context.Context, key string, value []byte) (int, error) {
+	n, err := st.WriteStream(ctx, key, util.NewByteReaderSize(value))
+	return int(n), err
 }
 
 // WriteStream implements Storage.WriteStream().
-func (st *S3Storage) WriteStream(ctx context.Context, key string, r io.Reader) error {
+func (st *S3Storage) WriteStream(ctx context.Context, key string, r io.Reader) (int64, error) {
 	// Check storage open
 	if st.closed() {
-		return ErrClosed
+		return 0, ErrClosed
 	}
 
 	if rs, ok := r.(util.ReaderSize); ok {
 		// This reader supports providing us the size of
 		// the encompassed data, allowing us to perform
 		// a singular .PutObject() call with length.
-		_, err := st.client.PutObject(
+		info, err := st.client.PutObject(
 			ctx,
 			st.bucket,
 			key,
@@ -181,9 +187,9 @@ func (st *S3Storage) WriteStream(ctx context.Context, key string, r io.Reader) e
 			st.config.PutOpts,
 		)
 		if err != nil {
-			return transformS3Error(err)
+			err = transformS3Error(err)
 		}
-		return nil
+		return info.Size, err
 	}
 
 	// Start a new multipart upload to get ID
@@ -194,14 +200,15 @@ func (st *S3Storage) WriteStream(ctx context.Context, key string, r io.Reader) e
 		st.config.PutOpts,
 	)
 	if err != nil {
-		return transformS3Error(err)
+		return 0, transformS3Error(err)
 	}
 
 	var (
-		count int
+		index = int(1) // parts index
+		total = int64(0)
 		parts []minio.CompletePart
 		chunk = make([]byte, st.config.PutChunkSize)
-		rdr   = bytes.NewReader(nil)
+		rbuf  = bytes.NewReader(nil)
 	)
 
 	// Note that we do not perform any kind of
@@ -229,11 +236,11 @@ loop:
 
 		// All other errors
 		default:
-			return err
+			return 0, err
 		}
 
 		// Reset byte reader
-		rdr.Reset(chunk[:n])
+		rbuf.Reset(chunk[:n])
 
 		// Put this object chunk in S3 store
 		pt, err := st.client.PutObjectPart(
@@ -241,15 +248,15 @@ loop:
 			st.bucket,
 			key,
 			uploadID,
-			count,
-			rdr,
-			st.config.PutChunkSize,
+			index,
+			rbuf,
+			int64(n),
 			"",
 			"",
 			nil,
 		)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		// Append completed part to slice
@@ -262,8 +269,11 @@ loop:
 			ChecksumSHA256: pt.ChecksumSHA256,
 		})
 
-		// Iterate part count
-		count++
+		// Iterate idx
+		index++
+
+		// Update total size
+		total += pt.Size
 	}
 
 	// Complete this multi-part upload operation
@@ -276,10 +286,10 @@ loop:
 		st.config.PutOpts,
 	)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return total, nil
 }
 
 // Stat implements Storage.Stat().
