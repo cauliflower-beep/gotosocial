@@ -11,9 +11,9 @@ require (
 	codeberg.org/gruf/go-errors/v2 v2.0.2
 	codeberg.org/gruf/go-kv v1.5.2
 	codeberg.org/gruf/go-logger/v2 v2.2.1
-	codeberg.org/gruf/go-mutexes v1.1.4
+	codeberg.org/gruf/go-mutexes v1.1.5
 	codeberg.org/gruf/go-runners v1.3.1
-	codeberg.org/gruf/go-store/v2 v2.0.7
+	codeberg.org/gruf/go-store/v2 v2.2.1
 	github.com/buckket/go-blurhash v1.1.0
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/cornelk/hashmap v1.0.8
@@ -63,9 +63,11 @@ require (
 	codeberg.org/gruf/go-atomics v1.1.0 // indirect
 	codeberg.org/gruf/go-bitutil v1.0.1 // indirect
 	codeberg.org/gruf/go-bytes v1.0.2 // indirect
-	codeberg.org/gruf/go-fastcopy v1.1.1 // indirect
+	codeberg.org/gruf/go-fastcopy v1.1.2 // indirect
 	codeberg.org/gruf/go-fastpath v1.0.3 // indirect
+	codeberg.org/gruf/go-fastpath/v2 v2.0.0 // indirect
 	codeberg.org/gruf/go-hashenc v1.0.2 // indirect
+	codeberg.org/gruf/go-iotools v0.0.0-20221224124424-3386841cb225 // indirect
 	codeberg.org/gruf/go-mangler v1.1.1 // indirect
 	codeberg.org/gruf/go-maps v1.0.3 // indirect
 	codeberg.org/gruf/go-pools v1.1.0 // indirect
@@ -135,7 +137,7 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220907135952-02c991387e35 // indirect
-	golang.org/x/sys v0.0.0-20220913120320-3275c407cedc // indirect
+	golang.org/x/sys v0.2.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
